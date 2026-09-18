@@ -1,0 +1,495 @@
+# Synthese du TP INF243 - ShopNow
+
+## 1. Presentation du projet
+
+ShopNow est une application e-commerce pedagogique developpee avec Node.js et Express. Elle permet de travailler les principaux niveaux de tests logiciels :
+
+- tests unitaires avec Mocha et Chai ;
+- tests d'integration HTTP avec Supertest ;
+- tests End-to-End avec Selenium WebDriver ;
+- mesure de couverture avec NYC ;
+- automatisation avec Jenkins ;
+- analyse de qualite avec SonarQube.
+
+L'objectif du TP est de construire progressivement une strategie de tests utile, reproductible et automatisee.
+
+## 2. Organisation du projet
+
+Les principaux dossiers sont :
+
+```text
+app/
+  src/
+    server.js       # application Express et routes API
+    business.js     # regles metier extraites et testables
+  public/           # pages HTML et JavaScript du site
+
+tests/
+  unit/             # tests unitaires
+  integration/      # tests API avec Supertest
+  e2e/              # tests navigateur avec Selenium
+
+Jenkinsfile         # pipeline CI Jenkins
+sonar-project.properties
+package.json
+README.md
+```
+
+Le serveur expose notamment :
+
+- `GET /api/health` ;
+- `GET /api/products` ;
+- `GET /api/products/:id` ;
+- `POST /api/register` ;
+- `POST /api/login`.
+
+L'application est accessible par Docker sur `http://localhost:8081`. SonarQube est expose sur `http://localhost:9090` et Jenkins sur `http://localhost:8080` lorsque les conteneurs sont demarres.
+
+## 3. Travail realise
+
+### 3.1 Tests unitaires
+
+Le fichier `tests/unit/business.test.js` teste les regles metier suivantes :
+
+- recherche d'un produit existant ;
+- recherche d'un produit inexistant ;
+- connexion avec un email valide ;
+- comparaison de l'email sans tenir compte de la casse ;
+- refus d'un mot de passe incorrect ;
+- refus d'un champ obligatoire manquant ;
+- refus d'un mot de passe trop court ;
+- refus d'un email deja utilise ;
+- creation d'un nouvel utilisateur.
+
+Les fonctions testees sont dans `app/src/business.js`. Cette separation rend les regles metier testables sans devoir demarrer un serveur HTTP pour chaque test.
+
+### 3.2 Tests API et integration
+
+Le fichier `tests/integration/api.test.js` utilise Supertest pour appeler directement l'application Express.
+
+Les tests verifient :
+
+- le code HTTP ;
+- la structure de la reponse ;
+- les donnees retournees ;
+- les cas nominaux ;
+- les cas invalides ;
+- les erreurs d'authentification ;
+- les routes inexistantes.
+
+Les cas negatifs couvrent notamment :
+
+- produit inexistant : `404` ;
+- identifiant produit invalide : `404` ;
+- mot de passe incorrect : `401` ;
+- email de connexion absent : `401` ;
+- champs d'inscription manquants : `400` ;
+- mot de passe trop court : `400` ;
+- email deja utilise : `409` ;
+- route API inconnue : `404`.
+
+### 3.3 Test End-to-End
+
+Le fichier `tests/e2e/navigation.test.js` automatise un parcours utilisateur complet avec Selenium et Chromium headless :
+
+1. ouverture de ShopNow ;
+2. suppression du panier et de la session precedente ;
+3. ouverture de la page de connexion ;
+4. connexion avec le compte de demonstration ;
+5. acces a la page des produits ;
+6. ouverture du detail du Laptop Pro 14 pouces ;
+7. verification du nom et du prix ;
+8. ajout du produit au panier ;
+9. ouverture du panier ;
+10. augmentation de la quantite ;
+11. verification du total ;
+12. suppression du produit ;
+13. verification que le panier est vide.
+
+Le test utilise les attributs `data-testid`, par exemple `login-submit`, `product-name`, `add-to-cart-1`, `quantity-1` et `empty-cart`. Il utilise aussi des attentes explicites Selenium avec `until.elementLocated`, `until.elementIsVisible`, `until.urlContains` et `until.alertIsPresent`.
+
+Le binaire Chromium peut etre configure avec la variable `CHROMIUM_BINARY`. Dans l'environnement actuel, le chemin par defaut utilise le binaire Chromium Snap versionne.
+
+## 4. Resultats des tests
+
+Les commandes executees sont :
+
+```bash
+npm run test:unit
+npm run test:integration
+npm run test:e2e
+npm test
+```
+
+Le dernier resultat global valide est :
+
+```text
+24 passing
+```
+
+La couverture generee par les tests unitaires et API est :
+
+| Metrique | Resultat |
+|---|---:|
+| Instructions | 94,64 % |
+| Branches | 92,85 % |
+| Fonctions | 92,85 % |
+| Lignes | 100 % |
+
+La commande de couverture est :
+
+```bash
+npm run test:coverage
+```
+
+Elle genere notamment :
+
+```text
+coverage/lcov.info
+coverage/lcov-report/index.html
+```
+
+Le rapport HTML peut etre ouvert dans un navigateur avec le fichier `coverage/lcov-report/index.html`.
+
+Les dossiers `coverage/`, `node_modules/` et `.nyc_output/` sont exclus par `.gitignore` et ne doivent pas etre pushes dans Git.
+
+## 5. Fonctionnement detaille du Jenkinsfile
+
+Le fichier `Jenkinsfile` definit une pipeline declarative Jenkins. Son but est de reproduire automatiquement la chaine suivante :
+
+```text
+Checkout
+   -> Installation
+   -> Tests unitaires
+   -> Tests API
+   -> Coverage
+   -> SonarQube
+   -> Post Actions
+```
+
+### 5.1 Declaration de la pipeline
+
+```groovy
+pipeline {
+    agent any
+```
+
+`pipeline` indique qu'il s'agit d'une pipeline declarative. `agent any` autorise Jenkins a executer la pipeline sur n'importe quel agent disponible.
+
+Dans l'installation actuelle, le job Jenkins utilise l'image Docker personnalisee du dossier `jenkins/`. Cette image contient notamment Node.js, npm, Chromium, Git et Docker CLI.
+
+### 5.2 Options globales
+
+```groovy
+options {
+    timestamps()
+    skipDefaultCheckout(true)
+    timeout(time: 15, unit: 'MINUTES')
+}
+```
+
+- `timestamps()` ajoute l'heure a chaque ligne de log, ce qui facilite le diagnostic ;
+- `skipDefaultCheckout(true)` empeche Jenkins de faire un checkout automatique implicite ;
+- `timeout(...)` arrete une pipeline qui depasse quinze minutes.
+
+Le checkout est donc realise explicitement dans l'etape `Checkout`.
+
+### 5.3 Variables d'environnement
+
+```groovy
+environment {
+    SONAR_SCANNER_OPTS = '-Xmx512m'
+}
+```
+
+Cette variable limite et reserve la memoire utilisee par le scanner SonarQube. Elle evite que l'analyse consomme une quantite excessive de memoire dans le conteneur Jenkins.
+
+### 5.4 Etape Checkout
+
+```groovy
+stage('Checkout') {
+    steps {
+        checkout scm
+    }
+}
+```
+
+Jenkins recupere le code depuis le depot configure dans le job. Dans ce projet, le job pointe vers :
+
+```text
+https://github.com/BALLOPROTEL/ShopNow2
+```
+
+La branche utilisee est `main` et le script de pipeline est `Jenkinsfile` a la racine.
+
+### 5.5 Etape Installation
+
+```groovy
+stage('Installation') {
+    steps {
+        sh 'npm ci'
+    }
+}
+```
+
+`npm ci` installe exactement les dependances indiquees dans `package-lock.json`. Cette commande est preferable a `npm install` en CI car elle produit une installation reproductible et echoue si le lockfile ne correspond pas au `package.json`.
+
+### 5.6 Etape Tests unitaires
+
+```groovy
+stage('Tests unitaires') {
+    steps {
+        sh 'npm run test:unit'
+    }
+}
+```
+
+Cette etape execute les fichiers situes dans `tests/unit/`. Si un test unitaire echoue, Jenkins marque la pipeline en echec et les etapes suivantes ne sont normalement pas executees.
+
+### 5.7 Etape Tests API
+
+```groovy
+stage('Tests API') {
+    steps {
+        sh 'npm run test:integration'
+    }
+}
+```
+
+Cette etape execute les tests Supertest situes dans `tests/integration/`. Elle verifie le comportement HTTP de l'application Express, sans utiliser un navigateur.
+
+### 5.8 Etape Coverage
+
+```groovy
+stage('Coverage') {
+    steps {
+        sh 'npm run test:coverage'
+        archiveArtifacts artifacts: 'coverage/lcov.info', fingerprint: true
+    }
+}
+```
+
+La commande `npm run test:coverage` lance NYC sur les tests unitaires et API. Elle produit le rapport LCOV dans `coverage/lcov.info`.
+
+`archiveArtifacts` conserve ce fichier dans Jenkins. Le parametre `fingerprint: true` permet a Jenkins d'identifier precisement l'artefact archive.
+
+Le test E2E n'est pas inclus dans la couverture NYC actuelle, car le script `test:coverage` cible volontairement les tests unitaires et d'integration.
+
+### 5.9 Etape SonarQube
+
+```groovy
+stage('SonarQube') {
+    steps {
+        withSonarQubeEnv('SonarQube') {
+            sh '''
+                npx --yes sonar-scanner \
+                  ...
+            '''
+        }
+    }
+}
+```
+
+`withSonarQubeEnv('SonarQube')` demande a Jenkins de charger la configuration du serveur SonarQube dont le nom est exactement `SonarQube`.
+
+Dans Jenkins, cette configuration doit contenir :
+
+```text
+Name       : SonarQube
+Server URL : http://sonarqube:9000
+```
+
+Le nom est sensible a la casse car il est utilise directement dans le Jenkinsfile.
+
+Le scanner est lance avec `npx --yes sonar-scanner`. Cela permet d'utiliser le scanner sans installer globalement une commande `sonar-scanner` dans l'image Jenkins.
+
+Les parametres transmis au scanner sont :
+
+```text
+-Dsonar.projectKey=shopnow
+```
+
+Identifiant technique du projet SonarQube.
+
+```text
+-Dsonar.projectName="ShopNow Test Platform"
+```
+
+Nom lisible du projet dans SonarQube.
+
+```text
+-Dsonar.sources=app/src
+```
+
+Seul le code applicatif du dossier `app/src` est analyse comme source.
+
+```text
+-Dsonar.tests=tests
+-Dsonar.test.inclusions=tests/**/*.test.js
+```
+
+Ces options indiquent a SonarQube ou se trouvent les tests et quels fichiers sont identifies comme tests.
+
+```text
+-Dsonar.exclusions=**/node_modules/**,**/coverage/**
+```
+
+Les dependances installees et les rapports generes ne sont pas analyses comme du code source du projet.
+
+```text
+-Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+```
+
+SonarQube lit le rapport LCOV genere par NYC pour afficher la couverture.
+
+```text
+-Dsonar.nodejs.executable=/opt/node18/bin/node
+```
+
+Le scanner SonarQube utilise Node.js 18, installe dans l'image Jenkins a cet emplacement. Node.js 22 reste utilise pour les tests du projet. Cette separation evite les problemes de compatibilite ou de lenteur de l'analyse JavaScript.
+
+### 5.10 Actions post-pipeline
+
+```groovy
+post {
+    always {
+        junit allowEmptyResults: true, testResults: 'test-results/**/*.xml'
+        archiveArtifacts artifacts: 'coverage/**', allowEmptyArchive: true
+    }
+```
+
+Le bloc `always` est execute que la pipeline reussisse ou echoue.
+
+- `junit` tente de publier des rapports JUnit si des fichiers XML existent ;
+- `allowEmptyResults: true` evite un nouvel echec lorsque les tests Mocha ne generent pas de XML ;
+- `archiveArtifacts` archive les fichiers de couverture s'ils existent ;
+- `allowEmptyArchive: true` evite de faire echouer les actions finales si aucun rapport n'a ete genere.
+
+```groovy
+success {
+    echo 'Pipeline ShopNow terminee avec succes.'
+}
+```
+
+Ce message apparait lorsque toutes les etapes principales ont reussi.
+
+```groovy
+failure {
+    echo 'Pipeline ShopNow en echec : consulter les logs de l etape concernee.'
+}
+```
+
+Ce message apparait lorsqu'une etape echoue. La premiere etape rouge dans l'interface Jenkins indique generalement l'origine du probleme.
+
+## 6. Configuration manuelle Jenkins
+
+Pour configurer SonarQube dans Jenkins :
+
+1. ouvrir Jenkins sur `http://localhost:8080` ;
+2. aller dans `Manage Jenkins` ;
+3. ouvrir `System` ;
+4. chercher `SonarQube servers` ;
+5. ajouter ou verifier le serveur ;
+6. utiliser exactement le nom `SonarQube` ;
+7. utiliser l'URL interne `http://sonarqube:9000` ;
+8. enregistrer la configuration ;
+9. ouvrir le job `shopnow-test-platform` ;
+10. cliquer sur `Build Now` ;
+11. ouvrir la console de la build ;
+12. vérifier les etapes `Checkout`, `Installation`, `Tests unitaires`, `Tests API`, `Coverage` et `SonarQube`.
+
+Depuis le navigateur de la machine hote, SonarQube est consulte avec :
+
+```text
+http://localhost:9090
+```
+
+Depuis le conteneur Jenkins, le nom de service Docker est utilise :
+
+```text
+http://sonarqube:9000
+```
+
+Ces deux adresses sont normales : elles correspondent a deux reseaux differents.
+
+## 7. Lecture des resultats SonarQube
+
+Apres une pipeline reussie, ouvrir le projet `ShopNow Test Platform` dans SonarQube et comparer :
+
+- la couverture locale affichee par NYC ;
+- la couverture affichee par SonarQube ;
+- les bugs ;
+- les vulnerabilites ;
+- les code smells ;
+- les duplications ;
+- les hotspots de securite.
+
+Une difference entre NYC et SonarQube peut venir des fichiers inclus dans l'analyse, des exclusions, du rapport LCOV utilise ou du fait que l'E2E n'est pas inclus dans le calcul de couverture NYC.
+
+## 8. Git et commits realises
+
+Le depot distant actuel est :
+
+```text
+https://github.com/BALLOPROTEL/ShopNow2.git
+```
+
+Les commits importants sont :
+
+```text
+199a110 Initialisation du TP de tests
+8d2285b first commit
+cac4e76 Amelioration de la strategie de tests
+03aef4b Ajout de la pipeline Jenkins
+```
+
+Le commit `03aef4b` contient le Jenkinsfile et a ete pousse sur la branche `main`.
+
+Commandes utilisees pour publier le travail :
+
+```bash
+git status
+git add .
+git commit -m "Ajout de la pipeline Jenkins"
+git push
+```
+
+Avant chaque commit, il faut verifier que `node_modules/`, `coverage/`, `.nyc_output/` et les fichiers `.env` ne sont pas ajoutes.
+
+## 9. Strategie de tests expliquee simplement
+
+### Test unitaire
+
+Il teste une fonction ou une regle metier de maniere isolee. Il est rapide et permet de localiser facilement une regression.
+
+### Test d'integration
+
+Il verifie que plusieurs composants fonctionnent ensemble. Ici, Supertest appelle Express et verifie la reponse HTTP de l'application.
+
+### Test E2E
+
+Il reproduit un parcours reel dans un navigateur. Il est plus proche de l'experience utilisateur, mais plus lent et plus dependant de l'environnement.
+
+### Couverture
+
+La couverture mesure la partie du code executee par les tests. Elle ne prouve pas a elle seule que tous les comportements sont correctement verifies.
+
+### Jenkins
+
+Jenkins automatise l'execution de la chaine de verification a chaque modification : installation, tests, couverture et analyse SonarQube.
+
+### SonarQube
+
+SonarQube analyse la qualite et la maintenabilite du code. Il complete la couverture en recherchant aussi des bugs, vulnerabilites, duplications et code smells.
+
+## 10. Bilan final
+
+Le projet dispose maintenant d'une strategie de tests a trois niveaux :
+
+- tests unitaires des regles metier ;
+- tests API des routes Express ;
+- test E2E du parcours panier.
+
+La suite locale est verte avec 24 tests et la couverture depasse l'objectif pedagogique de 80 %. La pipeline Jenkins est versionnee dans le depot et prete a executer les tests et l'analyse SonarQube, sous reserve que le serveur Jenkins soit configure avec le serveur SonarQube nomme exactement `SonarQube`.
+
+La prochaine etape operationnelle est de lancer une build Jenkins, verifier l'etape SonarQube et conserver les captures d'ecran de Jenkins, de la couverture locale et du tableau de bord SonarQube pour le compte rendu.

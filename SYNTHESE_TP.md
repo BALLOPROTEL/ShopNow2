@@ -175,8 +175,8 @@ Les dossiers `coverage/`, `node_modules/` et `.nyc_output/` sont exclus par `.gi
 | Depart | Tests de demarrage fournis | Environ 47,5 % (valeur du sujet) | Non execute | Non analyse |
 | Iteration 1 | Tests unitaires des regles metier | Non mesuree retrospectivement | Non execute | Non analyse |
 | Iteration 2 | Tests API nominaux et invalides | Non mesuree retrospectivement | Non execute | Non analyse |
-| Iteration 3 | Parcours E2E Selenium | 94,64 % pour unitaires/API | Non confirme | Non confirme |
-| Final | Pipeline, Quality Gate et rapports JUnit | 94,64 % | A valider dans Jenkins | A valider dans SonarQube |
+| Iteration 3 | Parcours E2E Selenium | 94,64 % pour unitaires/API | Tests E2E OK | Analyse a venir |
+| Final | Pipeline, Quality Gate et rapports JUnit | 94,64 % | SUCCESS, couverture 94,64 %, JUnit publies | Analyse reussie, Quality Gate OK |
 
 La couverture locale finale depasse l'objectif pedagogique de 80 %. La couverture
 NYC porte sur les tests unitaires et API ; le test E2E valide le parcours
@@ -673,8 +673,8 @@ Les captures suivantes doivent etre ajoutees au document de remise :
 - [x] Rapports JUnit ajoutes.
 - [x] `node_modules/`, `coverage/`, `.nyc_output/` et `test-results/` ignores.
 - [x] Image publiee sur Docker Hub.
-- [ ] Build Jenkins finale verifiee avec Quality Gate vert.
-- [ ] Tableau de bord SonarQube capture.
+- [x] Build Jenkins finale verifiee avec Quality Gate vert.
+- [ ] Tableau de bord SonarQube capture a joindre au compte rendu.
 - [ ] Nom de l'etudiant et groupe completes.
 
 ## 14. Conclusion
@@ -690,7 +690,10 @@ desormais les trois familles de tests, produit des rapports JUnit, genere LCOV,
 analyse le projet avec SonarQube et attend le Quality Gate.
 
 La suite locale est verte avec 24 tests et la couverture depasse l'objectif
-pedagogique de 80 %. La pipeline Jenkins est versionnee dans le depot et
-contient les tests, la couverture, les rapports JUnit, l'analyse SonarQube et le
-Quality Gate. La build Jenkins et le tableau de bord SonarQube doivent encore
-etre verifies dans l'interface et captures comme preuves finales.
+pedagogique de 80 %. La pipeline Jenkins a ete executee avec succes : les tests
+unitaires, API et E2E sont passes, la couverture Jenkins est de 94,64 %, les
+rapports JUnit ont ete enregistres et l'analyse SonarQube s'est terminee avec un
+Quality Gate `OK`.
+
+La seule action documentaire restante est d'ajouter une capture du tableau de
+bord SonarQube aux preuves du compte rendu, si l'enseignant la demande.

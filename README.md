@@ -1,4 +1,7 @@
+Initialisation du TP de tests
+
 # ShopNow — Plateforme pédagogique Tests + SonarQube + Jenkins
+
 
 Mini site e-commerce JavaScript/Node.js destiné à un TP de tests logiciels. Le dépôt est volontairement **partiellement testé** : les apprenants doivent écrire et enrichir les tests.
 

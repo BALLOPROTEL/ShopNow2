@@ -101,3 +101,5 @@ Configurer un pipeline qui :
 
 ## 7. Challenge final
 Atteindre une couverture de tests significative sans modifier artificiellement le code uniquement pour faire monter le pourcentage. Chaque test doit vérifier un comportement utile.
+
+# ShopNow2

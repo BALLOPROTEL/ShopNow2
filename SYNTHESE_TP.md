@@ -1,4 +1,19 @@
-# Synthese du TP INF243 - ShopNow
+# Rapport final - TP INF243
+
+## Informations de remise
+
+| Element | Valeur |
+|---|---|
+| Etudiant | A completer |
+| Groupe | A completer |
+| Projet | ShopNow - Plateforme de tests |
+| Depot Git | `https://github.com/BALLOPROTEL/ShopNow2` |
+| Branche | `main` |
+| Image Docker Hub | `balloprotel1/shopnow:latest` |
+
+Ce document constitue le compte rendu du TP. Il presente la strategie de tests,
+les tests ajoutes, les resultats locaux, la pipeline Jenkins et la configuration
+SonarQube.
 
 ## 1. Presentation du projet
 
@@ -152,6 +167,20 @@ coverage/lcov-report/index.html
 Le rapport HTML peut etre ouvert dans un navigateur avec le fichier `coverage/lcov-report/index.html`.
 
 Les dossiers `coverage/`, `node_modules/` et `.nyc_output/` sont exclus par `.gitignore` et ne doivent pas etre pushes dans Git.
+
+## 4.1 Tableau de suivi des iterations
+
+| Etape | Travail realise | Couverture locale | Jenkins | SonarQube |
+|---|---|---:|---|---|
+| Depart | Tests de demarrage fournis | Environ 47,5 % | Non execute | Non analyse |
+| Iteration 1 | Tests unitaires des regles metier | A relever dans le premier rapport | A completer | A completer |
+| Iteration 2 | Tests API nominaux et invalides | A relever dans le rapport intermediaire | A completer | A completer |
+| Iteration 3 | Parcours E2E Selenium | 94,64 % pour unitaires/API | A verifier dans Jenkins | A verifier dans SonarQube |
+| Final | Pipeline, Quality Gate et rapports JUnit | 94,64 % | A confirmer apres la build finale | A confirmer apres la build finale |
+
+La couverture locale finale depasse l'objectif pedagogique de 80 %. La couverture
+NYC porte sur les tests unitaires et API ; le test E2E valide le parcours
+utilisateur mais n'est pas un test de couverture instrumente par NYC.
 
 ## 5. Fonctionnement detaille du Jenkinsfile
 
@@ -493,9 +522,12 @@ Les commits importants sont :
 8d2285b first commit
 cac4e76 Amelioration de la strategie de tests
 03aef4b Ajout de la pipeline Jenkins
+92a05ad Complete Jenkins test pipeline
 ```
 
-Le commit `03aef4b` contient le Jenkinsfile et a ete pousse sur la branche `main`.
+Le commit `03aef4b` contient la premiere version du Jenkinsfile. Le commit
+`92a05ad` ajoute les stages E2E, Quality Gate, les rapports JUnit et la mise a
+jour de cette documentation. Ces commits ont ete pousses sur la branche `main`.
 
 Commandes utilisees pour publier le travail :
 
@@ -526,22 +558,131 @@ Il reproduit un parcours reel dans un navigateur. Il est plus proche de l'experi
 
 La couverture mesure la partie du code executee par les tests. Elle ne prouve pas a elle seule que tous les comportements sont correctement verifies.
 
-### Jenkins
+## 10. Reponses aux questions d'analyse
 
-Jenkins automatise l'execution de la chaine de verification a chaque modification : installation, tests, couverture et analyse SonarQube.
+### Question 1 - Difference entre les niveaux de tests
 
-### SonarQube
+- Un test unitaire verifie une fonction ou une regle metier de maniere isolee.
+- Un test d'integration verifie la collaboration de plusieurs composants, ici HTTP, Express et les routes API.
+- Un test E2E reproduit les actions d'un utilisateur dans un vrai navigateur.
 
-SonarQube analyse la qualite et la maintenabilite du code. Il complete la couverture en recherchant aussi des bugs, vulnerabilites, duplications et code smells.
+### Question 2 - Pourquoi 100 % de couverture peut etre insuffisant ?
 
-## 10. Bilan final
+La couverture indique que les lignes ou branches ont ete executees, mais elle ne
+garantit pas que les assertions sont pertinentes. Un test peut executer une
+ligne sans verifier correctement le resultat. Il faut donc combiner couverture,
+cas nominaux, cas limites, cas d'erreur et assertions precises.
 
-Le projet dispose maintenant d'une strategie de tests a trois niveaux :
+### Question 3 - Pourquoi tester les erreurs ?
 
-- tests unitaires des regles metier ;
-- tests API des routes Express ;
-- test E2E du parcours panier.
+Les erreurs font partie du comportement attendu d'une application. Tester les
+codes `400`, `401`, `404` et `409` permet de verifier que l'application refuse
+les donnees invalides de facon previsible et qu'elle ne renvoie pas une reponse
+faussement positive.
 
+### Question 4 - Pourquoi utiliser `data-testid` ?
+
+Un `data-testid` fournit un selecteur stable et independant de la mise en page
+ou des classes CSS. Le test Selenium est ainsi moins fragile lorsqu'un style ou
+la structure HTML evolue.
+
+### Question 5 - Pourquoi eviter les `sleep()` systematiques ?
+
+Un `sleep()` attend une duree fixe : il ralentit les tests et peut encore etre
+insuffisant sur une machine lente. Les attentes explicites attendent l'etat reel
+de l'element ou de l'URL et rendent le test plus rapide et plus fiable.
+
+### Question 6 - Quel est le role de Jenkins ?
+
+Jenkins automatise l'integration continue. A chaque build, il recupere le code,
+installe les dependances, execute les tests, genere la couverture et lance
+l'analyse SonarQube. Une regression est detectee avant la livraison.
+
+### Question 7 - Quel est le role de SonarQube ?
+
+SonarQube analyse la qualite statique et la maintenabilite du code. Il fournit
+des indicateurs sur les bugs, vulnerabilites, code smells, duplications,
+hotspots et couverture recue par LCOV.
+
+### Question 8 - Difference entre couverture et qualite du code
+
+La couverture mesure la portion de code executee par les tests. La qualite du
+code est plus large : lisibilite, maintenabilite, securite, complexite,
+duplication et absence de defauts detectables. Une couverture elevee ne suffit
+donc pas a garantir un code de bonne qualite.
+
+## 11. Difficultes rencontrees et solutions
+
+### Chemin Firefox Windows sous Linux
+
+Le test E2E initial utilisait un chemin Windows code en dur. Sous Linux, ce
+chemin etait invalide. Le test a ete adapte pour utiliser Chromium headless et
+la variable `CHROMIUM_BINARY`.
+
+### Session Chromium avec Snap
+
+Le lanceur `/snap/bin/chromium` ne fonctionnait pas directement avec
+ChromeDriver. Le binaire Chromium reel a ete utilise dans l'environnement local
+et Jenkins fournit son propre chemin `/usr/bin/chromium`.
+
+### Attente asynchrone de la quantite
+
+L'attente Selenium comparait une promesse avec une chaine de caracteres. Elle a
+ete corrigee pour attendre la resolution de `getText()` avant de comparer la
+valeur `2`.
+
+### Quality Gate SonarQube
+
+Le Quality Gate depend d'une configuration externe a Git : le serveur Jenkins
+doit connaitre un serveur nomme exactement `SonarQube` et SonarQube doit envoyer
+un webhook vers Jenkins. Ces parametres doivent etre verifies manuellement
+avant la build finale.
+
+## 12. Preuves a joindre au compte rendu
+
+Les captures suivantes doivent etre ajoutees au document de remise :
+
+1. depot GitHub et historique des commits ;
+2. resultat de `npm test` avec les tests verts ;
+3. resultat de `npm run test:coverage` ;
+4. page HTML `coverage/lcov-report/index.html` ;
+5. pipeline Jenkins avec toutes les etapes vertes ;
+6. console Jenkins montrant les rapports JUnit et SonarQube ;
+7. projet SonarQube et son Quality Gate ;
+8. depot Docker Hub `balloprotel1/shopnow`.
+
+## 13. Checklist finale
+
+- [x] Tests unitaires ajoutes.
+- [x] Tests API ajoutes.
+- [x] Test E2E avec Selenium et `data-testid` ajoute.
+- [x] Attentes explicites utilisees dans le test E2E.
+- [x] Couverture locale generee.
+- [x] Objectif de couverture superieur a 80 % atteint localement.
+- [x] Jenkinsfile versionne dans le depot.
+- [x] Stage Quality Gate ajoute.
+- [x] Rapports JUnit ajoutes.
+- [x] `node_modules/`, `coverage/`, `.nyc_output/` et `test-results/` ignores.
+- [x] Image publiee sur Docker Hub.
+- [ ] Build Jenkins finale verifiee avec Quality Gate vert.
+- [ ] Tableau de bord SonarQube capture.
+- [ ] Nom de l'etudiant et groupe completes.
+
+## 14. Conclusion
+
+Le projet ShopNow dispose d'une strategie de tests a trois niveaux et d'une
+pipeline CI complete. Les tests unitaires couvrent les regles metier, les tests
+API verifient les contrats HTTP et les erreurs, et le test E2E valide un parcours
+reel de connexion et de panier.
+
+La couverture locale est de 94,64 % pour les instructions, avec 92,85 % des
+branches, 92,85 % des fonctions et 100 % des lignes. La pipeline Jenkins lance
+desormais les trois familles de tests, produit des rapports JUnit, genere LCOV,
+analyse le projet avec SonarQube et attend le Quality Gate.
+
+La seule validation restant a effectuer est la build Jenkins finale apres
+configuration du serveur SonarQube et du webhook. Une fois cette build verte,
+le depot, le rapport et les captures constituent les livrables finaux du TP.
 La suite locale est verte avec 24 tests et la couverture depasse l'objectif pedagogique de 80 %. La pipeline Jenkins est versionnee dans le depot et prete a executer les tests et l'analyse SonarQube, sous reserve que le serveur Jenkins soit configure avec le serveur SonarQube nomme exactement `SonarQube`.
 
 La prochaine etape operationnelle est de lancer une build Jenkins, verifier l'etape SonarQube et conserver les captures d'ecran de Jenkins, de la couverture locale et du tableau de bord SonarQube pour le compte rendu.

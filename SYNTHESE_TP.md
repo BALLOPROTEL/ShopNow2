@@ -172,11 +172,11 @@ Les dossiers `coverage/`, `node_modules/` et `.nyc_output/` sont exclus par `.gi
 
 | Etape | Travail realise | Couverture locale | Jenkins | SonarQube |
 |---|---|---:|---|---|
-| Depart | Tests de demarrage fournis | Environ 47,5 % | Non execute | Non analyse |
-| Iteration 1 | Tests unitaires des regles metier | A relever dans le premier rapport | A completer | A completer |
-| Iteration 2 | Tests API nominaux et invalides | A relever dans le rapport intermediaire | A completer | A completer |
-| Iteration 3 | Parcours E2E Selenium | 94,64 % pour unitaires/API | A verifier dans Jenkins | A verifier dans SonarQube |
-| Final | Pipeline, Quality Gate et rapports JUnit | 94,64 % | A confirmer apres la build finale | A confirmer apres la build finale |
+| Depart | Tests de demarrage fournis | Environ 47,5 % (valeur du sujet) | Non execute | Non analyse |
+| Iteration 1 | Tests unitaires des regles metier | Non mesuree retrospectivement | Non execute | Non analyse |
+| Iteration 2 | Tests API nominaux et invalides | Non mesuree retrospectivement | Non execute | Non analyse |
+| Iteration 3 | Parcours E2E Selenium | 94,64 % pour unitaires/API | Non confirme | Non confirme |
+| Final | Pipeline, Quality Gate et rapports JUnit | 94,64 % | A valider dans Jenkins | A valider dans SonarQube |
 
 La couverture locale finale depasse l'objectif pedagogique de 80 %. La couverture
 NYC porte sur les tests unitaires et API ; le test E2E valide le parcours
@@ -270,7 +270,12 @@ stage('Installation') {
 ```groovy
 stage('Tests unitaires') {
     steps {
-        sh 'npm run test:unit'
+        sh '''
+            mkdir -p test-results
+            npx mocha "tests/unit/**/*.test.js" --timeout 10000 \
+              --reporter mocha-junit-reporter \
+              --reporter-option mochaFile=test-results/unit.xml
+        '''
     }
 }
 ```
@@ -282,7 +287,11 @@ Cette etape execute les fichiers situes dans `tests/unit/`. Si un test unitaire 
 ```groovy
 stage('Tests API') {
     steps {
-        sh 'npm run test:integration'
+        sh '''
+            npx mocha "tests/integration/**/*.test.js" --timeout 10000 \
+              --reporter mocha-junit-reporter \
+              --reporter-option mochaFile=test-results/integration.xml
+        '''
     }
 }
 ```
@@ -680,9 +689,8 @@ branches, 92,85 % des fonctions et 100 % des lignes. La pipeline Jenkins lance
 desormais les trois familles de tests, produit des rapports JUnit, genere LCOV,
 analyse le projet avec SonarQube et attend le Quality Gate.
 
-La seule validation restant a effectuer est la build Jenkins finale apres
-configuration du serveur SonarQube et du webhook. Une fois cette build verte,
-le depot, le rapport et les captures constituent les livrables finaux du TP.
-La suite locale est verte avec 24 tests et la couverture depasse l'objectif pedagogique de 80 %. La pipeline Jenkins est versionnee dans le depot et prete a executer les tests et l'analyse SonarQube, sous reserve que le serveur Jenkins soit configure avec le serveur SonarQube nomme exactement `SonarQube`.
-
-La prochaine etape operationnelle est de lancer une build Jenkins, verifier l'etape SonarQube et conserver les captures d'ecran de Jenkins, de la couverture locale et du tableau de bord SonarQube pour le compte rendu.
+La suite locale est verte avec 24 tests et la couverture depasse l'objectif
+pedagogique de 80 %. La pipeline Jenkins est versionnee dans le depot et
+contient les tests, la couverture, les rapports JUnit, l'analyse SonarQube et le
+Quality Gate. La build Jenkins et le tableau de bord SonarQube doivent encore
+etre verifies dans l'interface et captures comme preuves finales.

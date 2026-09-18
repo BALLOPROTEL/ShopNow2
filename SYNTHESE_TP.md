@@ -4,8 +4,8 @@
 
 | Element | Valeur |
 |---|---|
-| Etudiant | A completer |
-| Groupe | A completer |
+| Etudiant | Moi-meme |
+| Groupe | -1-1-1- |
 | Projet | ShopNow - Plateforme de tests |
 | Depot Git | `https://github.com/BALLOPROTEL/ShopNow2` |
 | Branche | `main` |

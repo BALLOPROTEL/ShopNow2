@@ -162,8 +162,10 @@ Checkout
    -> Installation
    -> Tests unitaires
    -> Tests API
+    -> Tests E2E
    -> Coverage
    -> SonarQube
+    -> Quality Gate
    -> Post Actions
 ```
 
@@ -258,7 +260,29 @@ stage('Tests API') {
 
 Cette etape execute les tests Supertest situes dans `tests/integration/`. Elle verifie le comportement HTTP de l'application Express, sans utiliser un navigateur.
 
-### 5.8 Etape Coverage
+### 5.8 Etape Tests E2E
+
+```groovy
+stage('Tests E2E') {
+    steps {
+        sh '''
+            PORT=8081 npm start > shopnow-e2e.log 2>&1 &
+            APP_PID=$!
+            trap 'kill $APP_PID 2>/dev/null || true' EXIT
+            ...
+            CHROMIUM_BINARY=/usr/bin/chromium npx mocha "tests/e2e/**/*.test.js" \
+              --reporter mocha-junit-reporter \
+              --reporter-option mochaFile=test-results/e2e.xml
+        '''
+    }
+}
+```
+
+Jenkins demarre temporairement l'application sur le port `8081`, attend que `/api/health` reponde, puis execute le parcours Selenium avec Chromium headless. Le `trap` arrete le serveur Node a la fin de l'etape, meme en cas d'echec.
+
+La variable `CHROMIUM_BINARY` indique a Selenium le chemin du navigateur installe dans l'image Jenkins. L'E2E produit aussi `test-results/e2e.xml`.
+
+### 5.9 Etape Coverage
 
 ```groovy
 stage('Coverage') {
@@ -275,7 +299,7 @@ La commande `npm run test:coverage` lance NYC sur les tests unitaires et API. El
 
 Le test E2E n'est pas inclus dans la couverture NYC actuelle, car le script `test:coverage` cible volontairement les tests unitaires et d'integration.
 
-### 5.9 Etape SonarQube
+### 5.10 Etape SonarQube
 
 ```groovy
 stage('SonarQube') {
@@ -348,21 +372,49 @@ SonarQube lit le rapport LCOV genere par NYC pour afficher la couverture.
 
 Le scanner SonarQube utilise Node.js 18, installe dans l'image Jenkins a cet emplacement. Node.js 22 reste utilise pour les tests du projet. Cette separation evite les problemes de compatibilite ou de lenteur de l'analyse JavaScript.
 
-### 5.10 Actions post-pipeline
+### 5.11 Etape Quality Gate
+
+```groovy
+stage('Quality Gate') {
+    steps {
+        timeout(time: 5, unit: 'MINUTES') {
+            waitForQualityGate abortPipeline: true
+        }
+    }
+}
+```
+
+Cette etape attend le resultat du Quality Gate SonarQube. Si SonarQube refuse la qualite du projet ou si le resultat n'arrive pas dans les cinq minutes, Jenkins marque la pipeline en echec.
+
+Pour que cette attente fonctionne, SonarQube doit avoir un webhook Jenkins configure vers :
+
+```text
+http://jenkins:8080/sonarqube-webhook/
+```
+
+### 5.12 Rapports JUnit et actions post-pipeline
 
 ```groovy
 post {
     always {
         junit allowEmptyResults: true, testResults: 'test-results/**/*.xml'
-        archiveArtifacts artifacts: 'coverage/**', allowEmptyArchive: true
+        archiveArtifacts artifacts: 'coverage/**,test-results/**,shopnow-e2e.log', allowEmptyArchive: true
     }
+```
+
+Les commandes Mocha utilisent `mocha-junit-reporter` pour produire trois rapports XML :
+
+```text
+test-results/unit.xml
+test-results/integration.xml
+test-results/e2e.xml
 ```
 
 Le bloc `always` est execute que la pipeline reussisse ou echoue.
 
-- `junit` tente de publier des rapports JUnit si des fichiers XML existent ;
-- `allowEmptyResults: true` evite un nouvel echec lorsque les tests Mocha ne generent pas de XML ;
-- `archiveArtifacts` archive les fichiers de couverture s'ils existent ;
+- `junit` publie les resultats des trois categories de tests dans Jenkins ;
+- `allowEmptyResults: true` evite un nouvel echec si un rapport n'a pas ete genere ;
+- `archiveArtifacts` archive la couverture, les rapports JUnit et le log de demarrage ShopNow ;
 - `allowEmptyArchive: true` evite de faire echouer les actions finales si aucun rapport n'a ete genere.
 
 ```groovy
@@ -396,7 +448,7 @@ Pour configurer SonarQube dans Jenkins :
 9. ouvrir le job `shopnow-test-platform` ;
 10. cliquer sur `Build Now` ;
 11. ouvrir la console de la build ;
-12. vérifier les etapes `Checkout`, `Installation`, `Tests unitaires`, `Tests API`, `Coverage` et `SonarQube`.
+12. vérifier les etapes `Checkout`, `Installation`, `Tests unitaires`, `Tests API`, `Tests E2E`, `Coverage`, `SonarQube` et `Quality Gate`.
 
 Depuis le navigateur de la machine hote, SonarQube est consulte avec :
 

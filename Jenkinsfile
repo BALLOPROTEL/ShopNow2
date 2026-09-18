@@ -5,6 +5,7 @@ pipeline {
         timestamps()
         skipDefaultCheckout(true)
         timeout(time: 15, unit: 'MINUTES')
+        disableConcurrentBuilds()
     }
 
     environment {
@@ -26,13 +27,49 @@ pipeline {
 
         stage('Tests unitaires') {
             steps {
-                sh 'npm run test:unit'
+                sh '''
+                    mkdir -p test-results
+                    npx mocha "tests/unit/**/*.test.js" --timeout 10000 \
+                      --reporter mocha-junit-reporter \
+                      --reporter-option mochaFile=test-results/unit.xml
+                '''
             }
         }
 
         stage('Tests API') {
             steps {
-                sh 'npm run test:integration'
+                sh '''
+                    npx mocha "tests/integration/**/*.test.js" --timeout 10000 \
+                      --reporter mocha-junit-reporter \
+                      --reporter-option mochaFile=test-results/integration.xml
+                '''
+            }
+        }
+
+        stage('Tests E2E') {
+            steps {
+                sh '''
+                    PORT=8081 npm start > shopnow-e2e.log 2>&1 &
+                    APP_PID=$!
+                    trap 'kill $APP_PID 2>/dev/null || true' EXIT
+
+                    for attempt in $(seq 1 30); do
+                        if curl --fail --silent http://localhost:8081/api/health >/dev/null; then
+                            break
+                        fi
+                        if [ "$attempt" -eq 30 ]; then
+                            cat shopnow-e2e.log
+                            exit 1
+                        fi
+                        sleep 1
+                    done
+
+                    mkdir -p test-results
+                    CHROMIUM_BINARY=/usr/bin/chromium npx mocha "tests/e2e/**/*.test.js" \
+                      --timeout 30000 \
+                      --reporter mocha-junit-reporter \
+                      --reporter-option mochaFile=test-results/e2e.xml
+                '''
             }
         }
 
@@ -60,12 +97,20 @@ pipeline {
                 }
             }
         }
+
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
     }
 
     post {
         always {
             junit allowEmptyResults: true, testResults: 'test-results/**/*.xml'
-            archiveArtifacts artifacts: 'coverage/**', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'coverage/**,test-results/**,shopnow-e2e.log', allowEmptyArchive: true
         }
         success {
             echo 'Pipeline ShopNow terminée avec succès.'

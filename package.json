@@ -19,6 +19,7 @@
     "chai": "^5.1.2",
     "geckodriver": "^6.1.1",
     "mocha": "^11.1.0",
+    "mocha-junit-reporter": "^2.2.1",
     "nyc": "^17.1.0",
     "selenium-webdriver": "^4.28.1",
     "supertest": "^7.1.0"
